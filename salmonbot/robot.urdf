@@ -166,51 +166,24 @@
     <limit lower="0.0" upper="2.618" effort="1000" velocity="10"/>
   </joint>
 
-<!--
-  <link name="pole">
-    <inertial>
-      <origin xyz="0 0 -.5" rpy="0 0 0" />
-      <mass value="1" />
-      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
-    </inertial>
-    <visual>
-      <origin xyz="0 0 -.25" rpy="0 0 0" />
-      <geometry>
-         <cylinder length=".5" radius=".01" />
-      </geometry>
-      <material>
-        <color rgba="1 0 0 1" />
-      </material>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -.5" rpy="0 0 0" />
-      <geometry>
-         <sphere radius=".05" />
-      </geometry>
-      <material>
-        <color rgba="0 0 1 1" />
-      </material>
-    </visual>
-  </link>
-  
-  <joint name="x" type="prismatic">
-    <parent link="world" />
-    <child link="cart" />
-    <origin xyz="0 0 0" />
-    <axis xyz="1 0 0" />
-  </joint>
-
-  <joint name="theta" type="continuous">
-    <parent link="cart" />
-    <child link="pole" />
-    <origin xyz="0 0 .25" />
-    <axis xyz="0 -1 0" />
-  </joint>
-
-  <transmission type="SimpleTransmission" name="cart_force">
-    <actuator name="force" />
-    <joint name="x" />
+  <transmission type="SimpleTransmission" name="arm_force">
+    <actuator name="arm_actuator" />
+    <joint name="shoulder_hand_joint" />
     <mechanicalReduction>1</mechanicalReduction>
   </transmission>
--->
+  <transmission type="SimpleTransmission" name="shoulder_torque">
+    <actuator name="shoulder_actuator" />
+    <joint name="torso_shoulder_joint" />
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
+  <transmission type="SimpleTransmission" name="hip_torque">
+    <actuator name="hip_actuator" />
+    <joint name="torso_upper_leg_joint" />
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
+  <transmission type="SimpleTransmission" name="knee_torque">
+    <actuator name="knee_actuator" />
+    <joint name="upper_leg_lower_leg_joint" />
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
 </robot>
