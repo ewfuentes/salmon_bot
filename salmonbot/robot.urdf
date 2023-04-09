@@ -1,0 +1,216 @@
+<?xml version="1.0"?>
+
+<robot xmlns="http://drake.mit.edu"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ name="salmonbot">
+
+  <link name="torso">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="45" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size=".15 .3 .6" />
+      </geometry>
+      <material>
+        <color rgba="0 1 0 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.45" rpy="0 0 0" />
+      <geometry>
+        <sphere radius=".1" />
+      </geometry>
+      <material>
+        <color rgba="0 1 0 1" />
+      </material>
+    </visual>
+  </link>
+
+  <link name="shoulder">
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual name="left shoulder">
+      <origin xyz="0.0 0.25 0.0"/>
+      <geometry>
+        <box size="0.1 0.1 0.1" />
+      </geometry>
+      <material>
+        <color rgba="0 1 1 1" />
+      </material>
+    </visual>
+    <visual name="right shoulder">
+      <origin xyz="0.0 -0.25 0.0"/>
+      <geometry>
+        <box size="0.1 0.1 0.1" />
+      </geometry>
+      <material>
+        <color rgba="0 1 1 1" />
+      </material>
+    </visual>
+  </link>
+
+  <link name="hand">
+    <inertial>
+      <mass value="8" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual name="left hand">
+      <origin xyz="0.0 0.25 0.0"/>
+      <geometry>
+        <box size="0.1 0.1 0.1" />
+      </geometry>
+      <material>
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <visual name="right hand">
+      <origin xyz="0.0 -0.25 0.0"/>
+      <geometry>
+        <box size="0.1 0.1 0.1" />
+      </geometry>
+      <material>
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+  </link>
+
+  <link name="upper_leg">
+    <inertial>
+      <mass value="16" />
+      <origin xyz="0.0 0.0 -0.225" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual name="left thigh">
+      <origin xyz="0.0 0.075 -0.225"/>
+      <geometry>
+        <box size="0.1 0.1 0.45" />
+      </geometry>
+      <material>
+        <color rgba="1 0 1 1" />
+      </material>
+    </visual>
+    <visual name="right thigh">
+      <origin xyz="0.0 -0.075 -0.225"/>
+      <geometry>
+        <box size="0.1 0.1 0.45" />
+      </geometry>
+      <material>
+        <color rgba="1 0 1 1" />
+      </material>
+    </visual>
+  </link>
+
+  <link name="lower_leg">
+    <inertial>
+      <mass value="8" />
+      <origin xyz="0.0 0.0 -0.225" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual name="left shin">
+      <origin xyz="0.0 0.075 -0.225"/>
+      <geometry>
+        <box size="0.1 0.1 0.45" />
+      </geometry>
+      <material>
+        <color rgba="0 0 1 1" />
+      </material>
+    </visual>
+    <visual name="right shin">
+      <origin xyz="0.0 -0.075 -0.225"/>
+      <geometry>
+        <box size="0.1 0.1 0.45" />
+      </geometry>
+      <material>
+        <color rgba="0 0 1 1" />
+      </material>
+    </visual>
+  </link>
+
+  <joint name="torso_shoulder_joint" type="revolute">
+    <parent link="torso" />
+    <child link="shoulder" />
+    <axis xyz="0 -1 0" />
+    <origin xyz="0 0 0.25" />
+    <limit lower="0.0" upper="3.14159" effort="1000" velocity="10"/>
+  </joint>
+
+  <joint name="shoulder_hand_joint" type="prismatic">
+    <parent link="shoulder" />
+    <child link="hand" />
+    <axis xyz="0 0 -1" />
+    <origin xyz="0 0 0.0" />
+    <limit lower="0.1" upper="0.6" effort="1000" velocity="10"/>
+  </joint>
+
+  <joint name="torso_upper_leg_joint" type="revolute">
+    <parent link="torso" />
+    <child link="upper_leg" />
+    <axis xyz="0 -1 0" />
+    <origin xyz="0.0 0.0 -0.25" />
+    <!-- upper limit of 5 * pi / /6 = 2.618 -->
+    <limit lower="0.0" upper="2.618" effort="1000" velocity="10"/>
+  </joint>
+
+  <joint name="upper_leg_lower_leg_joint" type="revolute">
+    <parent link="upper_leg" />
+    <child link="lower_leg" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0.0 0.0 -0.45" />
+    <!-- upper limit of 5 * pi / /6 = 2.618 -->
+    <limit lower="0.0" upper="2.618" effort="1000" velocity="10"/>
+  </joint>
+
+<!--
+  <link name="pole">
+    <inertial>
+      <origin xyz="0 0 -.5" rpy="0 0 0" />
+      <mass value="1" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 -.25" rpy="0 0 0" />
+      <geometry>
+         <cylinder length=".5" radius=".01" />
+      </geometry>
+      <material>
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 -.5" rpy="0 0 0" />
+      <geometry>
+         <sphere radius=".05" />
+      </geometry>
+      <material>
+        <color rgba="0 0 1 1" />
+      </material>
+    </visual>
+  </link>
+  
+  <joint name="x" type="prismatic">
+    <parent link="world" />
+    <child link="cart" />
+    <origin xyz="0 0 0" />
+    <axis xyz="1 0 0" />
+  </joint>
+
+  <joint name="theta" type="continuous">
+    <parent link="cart" />
+    <child link="pole" />
+    <origin xyz="0 0 .25" />
+    <axis xyz="0 -1 0" />
+  </joint>
+
+  <transmission type="SimpleTransmission" name="cart_force">
+    <actuator name="force" />
+    <joint name="x" />
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
+-->
+</robot>

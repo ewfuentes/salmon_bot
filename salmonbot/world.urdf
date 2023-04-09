@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+
+<robot xmlns="http://drake.mit.edu"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ name="world">
+  <link name="ground">
+    <visual>
+      <origin xyz="0 0 -5" rpy="0 0 0" />
+      <geometry>
+        <box size="1000 1000 10" />
+      </geometry>
+      <material>
+        <color rgba="0.93 .74 .4 1" />
+      </material>
+    </visual>
+  </link>
+
+
+</robot>
