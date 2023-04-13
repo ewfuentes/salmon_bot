@@ -15,5 +15,236 @@
     </visual>
   </link>
 
+  <link name="upright">
+    <visual name = "left upright">
+      <origin xyz="0 0.75 2" rpy="0 0 0" />
+      <geometry>
+        <box size="0.05 0.05 4" />
+      </geometry>
+      <material>
+        <color rgba=".74 0.93 .4 1" />
+      </material>
+    </visual>
+    <visual name = "right upright">
+      <origin xyz="0 -0.75 2" rpy="0 0 0" />
+      <geometry>
+        <box size="0.05 0.05 4" />
+      </geometry>
+      <material>
+        <color rgba="0.74 0.93 .4 1" />
+      </material>
+    </visual>
+    <collision name="upright_col">
+      <origin xyz="0 0 2" rpy="0 0 0" />
+      <geometry>
+        <box size="0.05 0.05 4" />
+      </geometry>
+    </collision>
+  </link>
 
+  <link name="hook_0">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="hook_1">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="hook_2">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="hook_3">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="hook_4">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="hook_5">
+    <visual name="left_hook">
+      <origin xyz="0 0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <visual name="right_hook">
+      <origin xyz="0 -0.75 0.075" />
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+      <material>
+        <color rgba="1.0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+    <collision name="hook_coll">
+      <origin xyz="0 0 0.075"/>
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="bar">
+    <visual>
+      <geometry>
+        <cylinder radius="0.02" length="1.75" />
+      </geometry>
+    </visual>
+    <collision name="bar_coll">
+      <geometry>
+        <cylinder radius="0.02" length="0.15" />
+      </geometry>
+    </collision>
+  </link>
+
+
+  <joint name="ground_upright_joint" type="fixed">
+    <parent link="ground" />
+    <child link="upright" />
+  </joint>
+  <joint name="upright_hook_0_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_0" />
+    <origin xyz="0.0 0.0 2.0" rpy="0 -0.7854 0.0" />
+  </joint>
+  <joint name="upright_hook_1_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_1" />
+    <origin xyz="0.0 0.0 2.3" rpy="0 -0.7854 0.0" />
+  </joint>
+  <joint name="upright_hook_2_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_2" />
+    <origin xyz="0.0 0.0 2.6" rpy="0 -0.7854 0.0" />
+  </joint>
+  <joint name="upright_hook_3_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_3" />
+    <origin xyz="0.0 0.0 2.9" rpy="0 -0.7854 0.0" />
+  </joint>
+  <joint name="upright_hook_4_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_4" />
+    <origin xyz="0.0 0.0 3.2" rpy="0 -0.7854 0.0" />
+  </joint>
+  <joint name="upright_hook_5_joint" type="fixed">
+    <parent link="upright" />
+    <child link="hook_5" />
+    <origin xyz="0.0 0.0 3.5" rpy="0 -0.7854 0.0" />
+  </joint>
 </robot>
