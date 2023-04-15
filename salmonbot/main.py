@@ -3,27 +3,80 @@ import argparse
 
 from pydrake.all import (
     AddMultibodyPlantSceneGraph,
-    ModelVisualizer,
     StartMeshcat,
     DiagramBuilder,
     Parser,
+    MultibodyPlant,
+    SceneGraph,
+    RigidTransform,
+    MeshcatVisualizer,
+    Simulator,
+    MakeRenderEngineVtk,
+    RenderEngineVtkParams,
+    CameraInfo,
+    RenderCameraCore,
+    ClippingRange,
+    ColorRenderCamera,
+    DepthRenderCamera,
+    RgbdSensor,
+    RollPitchYaw,
+    DepthRange,
 )
+import numpy as np
+import time
 
 
-def load_model(world_path: str, robot_path: str):
+def xyz_rpy_deg(xyz, rpy_deg):
+    """Shorthand for defining a pose."""
+    rpy_deg = np.asarray(rpy_deg)
+    return RigidTransform(RollPitchYaw(rpy_deg * np.pi / 180), xyz)
+
+
+def load_model(world_path: str, robot_path: str, meshcat: MeshcatVisualizer):
     builder = DiagramBuilder()
-    robot, robot_scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0.0)
-    Parser(robot).AddModelFromFile(robot_path, model_name="Robot")
-    Parser(robot).AddModelFromFile(world_path, model_name="World")
+    result: tuple[MultibodyPlant, SceneGraph] = AddMultibodyPlantSceneGraph(
+        builder, time_step=0.0
+    )
+    plant, scene_graph = result
+    parser = Parser(plant)
+    parser.AddModelFromFile(robot_path, model_name="Robot")
+    parser.AddModelFromFile(world_path, model_name="World")
+
+    plant.WeldFrames(
+        frame_on_parent_F=plant.GetFrameByName("hand"),
+        frame_on_child_M=plant.GetFrameByName("bar"),
+        X_FM=RigidTransform.Identity(),
+    )
+
+    plant.WeldFrames(
+        frame_on_parent_F=plant.world_frame(),
+        frame_on_child_M=plant.GetFrameByName("ground"),
+        X_FM=RigidTransform.Identity(),
+    )
+
+    MeshcatVisualizer.AddToBuilder(builder, scene_graph, meshcat)
+
+    plant.Finalize()
+    diagram = builder.Build()
+    return diagram, scene_graph
 
 
 def run(world_path: str, robot_path: str):
-    load_model(world_path, robot_path)
     meshcat = StartMeshcat()
-    visualizer = ModelVisualizer(meshcat=meshcat)
-    visualizer.AddModels(world_path)
-    visualizer.AddModels(robot_path)
-    visualizer.Run(loop_once=False)
+    # Build a diagram
+    diagram, scene_graph = load_model(world_path, robot_path, meshcat)
+
+    # Set the initial conditions
+
+    # Plan a trajectory
+
+    # Build a controller
+
+    # Run the simulation
+
+    Simulator(diagram).Initialize()
+
+    time.sleep(5)
 
 
 if __name__ == "__main__":
