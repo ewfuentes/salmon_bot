@@ -14,7 +14,10 @@ from pydrake.all import (
     Simulator,
     RollPitchYaw,
 )
+
 import numpy as np
+
+from salmonbot.trajectory_planner import plan_trajectory
 
 
 def xyz_rpy_deg(xyz, rpy_deg):
@@ -101,6 +104,7 @@ def run(world_path: str, robot_path: str):
     set_initial_conditions(simulator, diagram)
 
     # Plan a trajectory
+    plan_trajectory(diagram.GetSubsystemByName('plant'))
 
     # Build a controller
 
@@ -108,10 +112,10 @@ def run(world_path: str, robot_path: str):
     simulator.Initialize()
     simulator.set_publish_every_time_step(True)
     simulator.set_target_realtime_rate(0.25)
-    input("press enter to continue")
-    for i in np.arange(0, 5.0, 0.25):
-        print(f"Sim step: {i}")
-        simulator.AdvanceTo(i)
+    # input("press enter to continue")
+    # for i in np.arange(0, 5.0, 0.25):
+    #     print(f"Sim step: {i}")
+    #     simulator.AdvanceTo(i)
 
 
 if __name__ == "__main__":
