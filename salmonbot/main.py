@@ -11,12 +11,10 @@ from pydrake.all import (
     SceneGraph,
     RigidTransform,
     MeshcatVisualizer,
-    System,
     Simulator,
     RollPitchYaw,
 )
 import numpy as np
-import time
 
 
 def xyz_rpy_deg(xyz, rpy_deg):
@@ -91,7 +89,6 @@ def set_initial_conditions(simulator: Simulator, diagram: Diagram):
     )
 
 
-
 def run(world_path: str, robot_path: str):
     meshcat = StartMeshcat()
     # Build a diagram
@@ -111,7 +108,7 @@ def run(world_path: str, robot_path: str):
     simulator.Initialize()
     simulator.set_publish_every_time_step(True)
     simulator.set_target_realtime_rate(0.25)
-    input('press enter to continue')
+    input("press enter to continue")
     for i in np.arange(0, 5.0, 0.25):
         print(f"Sim step: {i}")
         simulator.AdvanceTo(i)
