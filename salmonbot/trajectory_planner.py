@@ -52,7 +52,7 @@ def add_plane_constraints(
                 lb=[0.0],
                 ub=[0.0],
                 vars=q[t],
-                description=f'{frame}_in_plane_{t}'
+                description=f"{frame}_in_plane_{t}",
             )
 
 
@@ -60,11 +60,31 @@ def add_hand_height_constraints(
     plant: MultibodyPlant, q: State, prog: MathematicalProgram
 ):
     prog.AddConstraint(
-        lambda q_t: frame_z_position(plant, q_t, "hand"), lb=[2.0], ub=[2.0], vars=q[0], description='hand_height_0'
+        lambda q_t: frame_z_position(plant, q_t, "hand"),
+        lb=[2.0],
+        ub=[2.0],
+        vars=q[0],
+        description="hand_height_0",
     )
     prog.AddConstraint(
-        lambda q_t: frame_z_position(plant, q_t, "hand"), lb=[3.0], ub=[3.0], vars=q[-1], description='hand_height_-1'
+        lambda q_t: frame_z_position(plant, q_t, "hand"),
+        lb=[3.0],
+        ub=[3.0],
+        vars=q[-1],
+        description="hand_height_-1",
     )
+
+
+def add_joint_limit_constraints(
+    plant: MultibodyPlant, q: np.ndarray, q_dot: np.ndarray, prog: MathematicalProgram
+):
+    for t in range(q.shape[0]):
+        prog.AddLinearConstraint(
+            np.identity(len(q[t])),
+            lb=plant.GetPositionLowerLimits(),
+            ub=plant.GetPositionUpperLimits(),
+            vars=q[t],
+        )
 
 
 def add_constraints(
@@ -75,10 +95,12 @@ def add_constraints(
 ):
     add_plane_constraints(plant, q, prog)
     add_hand_height_constraints(plant, q, prog)
+    add_joint_limit_constraints(plant, q, q_dot, prog)
 
 
-def get_initial_guess(num_timesteps: int, prog: MathematicalProgram,
-                      q: np.ndarray, q_dot: np.ndarray) -> np.ndarray:
+def get_initial_guess(
+    num_timesteps: int, prog: MathematicalProgram, q: np.ndarray, q_dot: np.ndarray
+) -> np.ndarray:
     out = np.ones(prog.num_vars())
     q_guess = np.zeros_like(q)
     for t in range(q.shape[0]):
@@ -103,5 +125,5 @@ def plan_trajectory(plant: MultibodyPlant):
 
     solver = SnoptSolver()
     result = solver.Solve(prog, initial_guess=initial_guess)
-    print(f'Optimization Succeeded? {result.is_success()}')
+    print(f"Optimization Succeeded? {result.is_success()}")
     IPython.embed()
