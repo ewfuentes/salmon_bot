@@ -186,8 +186,8 @@ def add_dynamics_constraints(
         vars = np.concatenate([q[i], q_dot[i], q_ddot[i], q[i+1], q_dot[i+1], q_ddot[i+1]])
         prog.AddConstraint(
             lambda vars: compute_integration_violation(plant, vars),
-            lb=[0.0] * x_size,
-            ub=[0.0] * x_size,
+            lb=[0.0] * q_ddot_size,
+            ub=[0.0] * q_ddot_size,
             vars=vars,
         )
 
