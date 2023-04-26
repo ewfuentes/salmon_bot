@@ -104,7 +104,7 @@ def run(world_path: str, robot_path: str):
     set_initial_conditions(simulator, diagram)
 
     # Plan a trajectory
-    plan_trajectory(diagram.GetSubsystemByName('plant'))
+    plan_trajectory(diagram)
 
     # Build a controller
 
