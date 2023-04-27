@@ -3,7 +3,9 @@ import argparse
 
 from pydrake.all import (
     AddMultibodyPlantSceneGraph,
+    Context,
     StartMeshcat,
+    Meshcat,
     Diagram,
     DiagramBuilder,
     Parser,
@@ -13,11 +15,16 @@ from pydrake.all import (
     MeshcatVisualizer,
     Simulator,
     RollPitchYaw,
+    InitializeParams,
 )
 
 import numpy as np
+import time
+import IPython
 
-from salmonbot.trajectory_planner import plan_trajectory
+from salmonbot.trajectory_planner import plan_trajectory, Trajectory
+
+np.set_printoptions(linewidth=200)
 
 
 def xyz_rpy_deg(xyz, rpy_deg):
@@ -55,8 +62,7 @@ def load_model(world_path: str, robot_path: str, meshcat: MeshcatVisualizer):
     return diagram, scene_graph
 
 
-def set_initial_conditions(simulator: Simulator, diagram: Diagram):
-    context = simulator.get_mutable_context()
+def set_initial_conditions(diagram: Diagram, context: Context):
     plant: MultibodyPlant = diagram.GetSubsystemByName("plant")
     plant_context = plant.GetMyContextFromRoot(context)
 
@@ -92,6 +98,49 @@ def set_initial_conditions(simulator: Simulator, diagram: Diagram):
     )
 
 
+def visualize_trajectory(
+    meshcat: Meshcat,
+    trajectory: Trajectory,
+    simulator: Simulator,
+    diagram: Diagram,
+    context: Context,
+):
+    t = [0] + list(np.cumsum(trajectory.t))
+    STOP_TRAJECTORY_VIZ_STR = "Stop Trajectory Viz"
+    TIMESTEP_SLIDER_STR = "Timestep Selector"
+    meshcat.AddButton(STOP_TRAJECTORY_VIZ_STR)
+    meshcat.AddSlider(TIMESTEP_SLIDER_STR, 0, len(t) - 1, step=1.0, value=0.0)
+    plant: MultibodyPlant = diagram.GetSubsystemByName("plant")
+    plant_context = plant.GetMyContextFromRoot(context)
+    simulator.Initialize()
+
+    run = True
+    prev_step_value = -1.0
+    while run:
+        # get inputs
+        num_times_stopped_pressed = meshcat.GetButtonClicks(STOP_TRAJECTORY_VIZ_STR)
+        step_value = meshcat.GetSliderValue(TIMESTEP_SLIDER_STR)
+
+        # set state
+        run = num_times_stopped_pressed == 0
+        should_redraw = False
+
+        if prev_step_value != step_value:
+            prev_step_value = step_value
+            should_redraw = True
+            idx = int(step_value)
+            plant.SetPositions(plant_context, trajectory.state[idx])
+            plant.SetVelocities(plant_context, trajectory.state_dot[idx])
+            # context.SetTime(t[idx])
+            print(f"{t[idx]}: {trajectory.state[idx]}")
+
+        # flush
+        if should_redraw:
+            simulator.Initialize(InitializeParams(suppress_initialization_events=True))
+        time.sleep(0.1)
+    meshcat.DeleteButton(STOP_TRAJECTORY_VIZ_STR)
+
+
 def run(world_path: str, robot_path: str):
     meshcat = StartMeshcat()
     # Build a diagram
@@ -99,19 +148,25 @@ def run(world_path: str, robot_path: str):
 
     # Create the simulator
     simulator = Simulator(diagram)
+    context = simulator.get_mutable_context()
 
     # Set the initial conditions
-    set_initial_conditions(simulator, diagram)
+    set_initial_conditions(diagram, context)
 
     # Plan a trajectory
-    plan_trajectory(diagram)
+    trajectory = plan_trajectory(diagram)
+
+    print(
+        f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
+    )
+    visualize_trajectory(meshcat, trajectory, simulator, diagram, context)
 
     # Build a controller
 
     # Run the simulation
-    simulator.Initialize()
-    simulator.set_publish_every_time_step(True)
-    simulator.set_target_realtime_rate(0.25)
+    # simulator.Initialize()
+    # simulator.set_publish_every_time_step(True)
+    # simulator.set_target_realtime_rate(0.25)
     # input("press enter to continue")
     # for i in np.arange(0, 5.0, 0.25):
     #     print(f"Sim step: {i}")
