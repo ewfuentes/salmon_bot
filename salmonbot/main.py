@@ -131,8 +131,6 @@ def visualize_trajectory(
             idx = int(step_value)
             plant.SetPositions(plant_context, trajectory.state[idx])
             plant.SetVelocities(plant_context, trajectory.state_dot[idx])
-            # context.SetTime(t[idx])
-            print(f"{t[idx]}: {trajectory.state[idx]}")
 
         # flush
         if should_redraw:
@@ -160,6 +158,7 @@ def run(world_path: str, robot_path: str):
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
     )
     visualize_trajectory(meshcat, trajectory, simulator, diagram, context)
+    IPython.embed()
 
     # Build a controller
 
