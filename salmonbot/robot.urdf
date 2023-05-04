@@ -4,6 +4,12 @@
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
  name="salmonbot">
 
+  <link name="origin_link">
+  </link>
+  <link name="x_link">
+  </link>
+  <link name="z_link">
+  </link>
   <link name="torso">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0" />
@@ -131,6 +137,23 @@
       </material>
     </visual>
   </link>
+
+  <joint name="origin_x_joint" type="prismatic">
+    <parent link="origin_link" />
+    <child link="x_link" />
+    <axis xyz="1 0 0" />
+  </joint>
+
+  <joint name="x_z_joint" type="prismatic">
+    <parent link="x_link" />
+    <child link="z_link" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="z_torso_joint" type="continuous">
+    <parent link="z_link" />
+    <child link="torso" />
+    <axis xyz="0 1 0" />
+  </joint>
 
   <joint name="torso_shoulder_joint" type="revolute">
     <parent link="torso" />
