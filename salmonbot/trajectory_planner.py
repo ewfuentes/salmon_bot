@@ -7,8 +7,6 @@ from pydrake.all import (
     MultibodyPlant,
     RigidTransform,
     SnoptSolver,
-    QuaternionEulerIntegrationConstraint,
-    UnitQuaternionConstraint,
     SolverOptions,
     CommonSolverOption,
     JacobianWrtVariable,
@@ -16,17 +14,12 @@ from pydrake.all import (
 
 from typing import NamedTuple
 import numpy as np
-import IPython
 
 
 class State(NamedTuple):
-    world_torso_qw: float
-    world_torso_qx: float
-    world_torso_qy: float
-    world_torso_qz: float
-    world_torso_x: float
-    world_torso_y: float
-    world_torso_z: float
+    x_x: float
+    z_x: float
+    theta_q: float
     torso_shoulder_joint_q: float
     shoulder_hand_joint_x: float
     torso_upper_leg_joint_q: float
@@ -34,12 +27,9 @@ class State(NamedTuple):
 
 
 class StateDot(NamedTuple):
-    world_torso_qx: float
-    world_torso_qy: float
-    world_torso_qz: float
-    world_torso_x: float
-    world_torso_y: float
-    world_torso_z: float
+    x_v: float
+    z_v: float
+    theta_w: float
     torso_shoulder_joint_q: float
     shoulder_hand_joint_x: float
     torso_upper_leg_joint_q: float
@@ -63,35 +53,18 @@ class Trajectory(NamedTuple):
     is_successful: bool
 
 
+INITIAL_HAND_Z = 2.11
+FINAL_HAND_Z = 2.41
+INITIAL_HAND_X = -0.05
+FINAL_HAND_X = -0.05
+
+
 def get_world_from_frame(
     plant: tuple[MultibodyPlant, Context], q: State, name: str
 ) -> RigidTransform:
     plant[0].SetPositions(plant[1], q)
     frame = plant[0].GetFrameByName(name)
     return frame.CalcPoseInWorld(plant[1])
-
-
-def xz_plane_constraint(
-    plant: tuple[MultibodyPlant, Context],
-    plant_ad: tuple[MultibodyPlant, Context],
-    q: np.ndarray,
-    frame: str,
-):
-    if isinstance(q[0], AutoDiffXd):
-        p = plant_ad
-    else:
-        p = plant
-    world_from_frame = get_world_from_frame(p, q, frame)
-
-    frame_origin_in_world = world_from_frame.translation()
-    frame_x_in_world = (
-        world_from_frame.multiply(np.array([[1.0, 0.0, 0.0]]).T).squeeze().tolist()
-    )
-    frame_z_in_world = (
-        world_from_frame.multiply(np.array([[0.0, 0.0, 1.0]]).T).squeeze().tolist()
-    )
-
-    return [frame_origin_in_world[1], frame_x_in_world[1], frame_z_in_world[1]]
 
 
 def frame_x_position(
@@ -108,6 +81,20 @@ def frame_x_position(
     return world_from_frame.translation()[:1]
 
 
+def frame_x_axis(
+    plant: tuple[MultibodyPlant, Context],
+    plant_ad: tuple[MultibodyPlant, Context],
+    q: np.ndarray,
+    frame: str,
+):
+    if isinstance(q[0], AutoDiffXd):
+        p = plant_ad
+    else:
+        p = plant
+    world_from_frame = get_world_from_frame(p, q, frame)
+    return world_from_frame.rotation().multiply(np.array([1, 0, 0]))
+
+
 def frame_z_position(
     plant: tuple[MultibodyPlant, Context],
     plant_ad: tuple[MultibodyPlant, Context],
@@ -122,57 +109,46 @@ def frame_z_position(
     return world_from_frame.translation()[-1:]
 
 
-def add_plane_constraints(
-    plant: tuple[MultibodyPlant, Context],
-    plant_ad: tuple[MultibodyPlant, Context],
-    q: np.ndarray,
-    q_dot: np.ndarray,
-    prog: MathematicalProgram,
-):
-    for t in range(q.shape[0]):
-        for frame in ["hand", "torso", "lower_leg"]:
-            prog.AddConstraint(
-                lambda q_t: xz_plane_constraint(plant, plant_ad, q_t, frame),
-                lb=[0.0] * 3,
-                ub=[0.0] * 3,
-                vars=q[t],
-                description=f"{frame}_in_plane_{t}",
-            )
-
-
-def add_hand_height_constraints(
+def add_hand_constraints(
     plant: tuple[MultibodyPlant, Context],
     plant_ad: tuple[MultibodyPlant, Context],
     q: State,
     prog: MathematicalProgram,
 ):
     prog.AddConstraint(
-        lambda q_t: frame_z_position(plant, plant_ad, q_t, "hand"),
-        lb=[2.11],
-        ub=[2.11],
+        lambda q_t: frame_x_axis(plant, plant_ad, q_t, "hand"),
+        lb=[-10.0, 0.0, 0.0],
+        ub=[0.0, 0.0, 0.0],
         vars=q[0],
-        description="hand_height_0",
+        description="hand_pointed_up_0",
     )
     prog.AddConstraint(
         lambda q_t: frame_z_position(plant, plant_ad, q_t, "hand"),
-        lb=[2.41],
-        ub=[2.41],
+        lb=[INITIAL_HAND_Z],
+        ub=[INITIAL_HAND_Z],
+        vars=q[0],
+        description="hand_z_0",
+    )
+    prog.AddConstraint(
+        lambda q_t: frame_z_position(plant, plant_ad, q_t, "hand"),
+        lb=[FINAL_HAND_Z],
+        ub=[FINAL_HAND_Z],
         vars=q[-1],
-        description="hand_height_-1",
+        description="hand_z_-1",
     )
     prog.AddConstraint(
         lambda q_t: frame_x_position(plant, plant_ad, q_t, "hand"),
-        lb=[-0.05],
-        ub=[-0.05],
+        lb=[INITIAL_HAND_X],
+        ub=[INITIAL_HAND_X],
         vars=q[0],
-        description="hand_height_0",
+        description="hand_x_0",
     )
     prog.AddConstraint(
         lambda q_t: frame_x_position(plant, plant_ad, q_t, "hand"),
-        lb=[-0.05],
-        ub=[-0.05],
+        lb=[FINAL_HAND_X],
+        ub=[FINAL_HAND_X],
         vars=q[-1],
-        description="hand_height_-1",
+        description="hand_x_-1",
     )
 
 
@@ -180,7 +156,6 @@ def add_joint_limit_constraints(
     plant: tuple[MultibodyPlant, Context],
     plant_ad: tuple[MultibodyPlant, Context],
     q: np.ndarray,
-    q_dot: np.ndarray,
     prog: MathematicalProgram,
 ):
     for t in range(q.shape[0]):
@@ -193,10 +168,23 @@ def add_joint_limit_constraints(
 
 
 def add_time_step_constraints(
-    dt: np.ndarray, prog: MathematicalProgram, min_dt_s=0.0005, max_dt_s=0.05
+    dt: np.ndarray,
+    t_contact: int,
+    prog: MathematicalProgram,
+    min_dt_s=0.005,
+    max_dt_s=0.05,
 ):
+    contact_dt = dt[:t_contact]
+    flight_dt = dt[t_contact:]
     prog.AddLinearConstraint(
-        dt, lb=np.ones_like(dt) * min_dt_s, ub=np.ones_like(dt) * max_dt_s
+        contact_dt,
+        lb=np.ones_like(contact_dt) * min_dt_s,
+        ub=np.ones_like(contact_dt) * max_dt_s,
+    )
+    prog.AddLinearConstraint(
+        flight_dt,
+        lb=np.ones_like(flight_dt) * min_dt_s,
+        ub=np.ones_like(flight_dt) * max_dt_s,
     )
 
 
@@ -261,7 +249,7 @@ def compute_integration_violation(
     split_at = np.cumsum(sizes)
     dt, q_1, qdot_1, qddot_1, q_2, qdot_2, qddot_2 = np.split(vars, split_at[:-1])
     # Compute the other errors
-    q_body_error = q_2[4:] - q_1[4:] - dt * qdot_2[3:]
+    q_body_error = q_2 - q_1 - dt * qdot_2
     q_dot_error = qdot_2 - qdot_1 - dt * qddot_2
 
     error = np.concatenate([q_body_error, q_dot_error])
@@ -279,18 +267,6 @@ def add_dynamics_constraints(
     f: np.ndarray,
     prog: MathematicalProgram,
 ):
-    quaternion_constraint = QuaternionEulerIntegrationConstraint(
-        allow_quaternion_negation=False
-    )
-    for i in range(dt.shape[0]):
-        prog.AddConstraint(
-            quaternion_constraint,
-            np.concatenate([q[i, :4], q[i + 1, :4], q_dot[i + 1, :3], dt[i]]),
-        )
-
-    for i in range(q.shape[0]):
-        prog.AddConstraint(UnitQuaternionConstraint(), q[i, :4])
-
     q_ddot_size = q_ddot.shape[1]
     for i in range(u.shape[0]):
         vars = np.concatenate([q[i], q_dot[i], q_ddot[i], u[i], f[i]])
@@ -301,7 +277,7 @@ def add_dynamics_constraints(
             vars=vars,
         )
 
-    x_size = q.shape[1] - 4 + q_dot.shape[1]
+    x_size = q.shape[1] + q_dot.shape[1]
     for i in range(dt.shape[0]):
         vars = np.concatenate(
             [dt[i], q[i], q_dot[i], q_ddot[i], q[i + 1], q_dot[i + 1], q_ddot[i + 1]]
@@ -345,7 +321,7 @@ def add_contact_constraints(
     prog: MathematicalProgram,
 ):
     for t in range(q.shape[0]):
-        if t <= t_contact:
+        if t < t_contact:
             vars = np.concatenate([q[0], q[t]])
             prog.AddConstraint(
                 lambda x: hand_position_delta(plant, plant_ad, x),
@@ -353,8 +329,19 @@ def add_contact_constraints(
                 ub=[0.0] * 2,
                 vars=vars,
             )
-        elif t > t_contact:
+        elif t >= t_contact:
             prog.AddBoundingBoxConstraint([0.0, 0.0], [0.0, 0.0], f[t])
+
+
+def add_positive_velocity_on_release_constraint(
+    plant: tuple[MultibodyPlant, Context],
+    plant_ad: tuple[MultibodyPlant, Context],
+    q_dot: np.ndarray,
+    t_contact: int,
+    prog: MathematicalProgram,
+):
+    state_dot = StateDot(*q_dot[t_contact])
+    prog.AddBoundingBoxConstraint([0.0], [np.inf], [state_dot.z_v])
 
 
 def add_constraints(
@@ -370,11 +357,109 @@ def add_constraints(
     f: np.ndarray,
 ):
     add_contact_constraints(plant, plant_ad, q, f, t_contact, prog)
-    add_plane_constraints(plant, plant_ad, q, q_dot, prog)
-    add_hand_height_constraints(plant, plant_ad, q, prog)
-    add_joint_limit_constraints(plant, plant_ad, q, q_dot, prog)
-    add_time_step_constraints(dt, prog)
+    add_hand_constraints(plant, plant_ad, q, prog)
+    add_joint_limit_constraints(plant, plant_ad, q, prog)
+    add_positive_velocity_on_release_constraint(plant, plant_ad, q_dot, t_contact, prog)
+    add_time_step_constraints(dt, t_contact, prog)
     add_dynamics_constraints(plant, plant_ad, dt, q, q_dot, q_ddot, u, f, prog)
+
+
+def get_key_frames(plant: tuple[MultibodyPlant, Context]):
+    prog = MathematicalProgram()
+    q = prog.NewContinuousVariables(rows=3, cols=plant[0].num_positions())
+
+    # Add hand z constraints
+    prog.AddConstraint(
+        lambda q_t: frame_z_position(plant, plant, q_t, "hand"),
+        lb=[INITIAL_HAND_Z],
+        ub=[INITIAL_HAND_Z],
+        vars=q[0],
+    )
+    prog.AddConstraint(
+        lambda q_t: frame_z_position(plant, plant, q_t, "hand"),
+        lb=[INITIAL_HAND_Z],
+        ub=[INITIAL_HAND_Z],
+        vars=q[1],
+    )
+    prog.AddConstraint(
+        lambda q_t: frame_z_position(plant, plant, q_t, "hand"),
+        lb=[FINAL_HAND_Z],
+        ub=[FINAL_HAND_Z],
+        vars=q[2],
+    )
+
+    prog.AddConstraint(
+        lambda q_t: frame_x_axis(plant, plant, q_t, "hand"),
+        lb=[0, 0, 0],
+        ub=[0, 0, 10],
+        vars=q[1],
+    )
+
+    # Add hand x constraints
+    for i in range(3):
+        prog.AddConstraint(
+            lambda q_t: frame_x_position(plant, plant, q_t, "hand"),
+            lb=[INITIAL_HAND_X],
+            ub=[INITIAL_HAND_X],
+            vars=q[i],
+        )
+
+    # Add arm angle constraints
+    prog.AddBoundingBoxConstraint(
+        [np.pi],
+        [np.pi],
+        [State(*q[0]).torso_shoulder_joint_q],
+    )
+    prog.AddBoundingBoxConstraint(
+        [np.pi / 2],
+        [np.pi / 2],
+        [State(*q[1]).torso_shoulder_joint_q],
+    )
+    prog.AddBoundingBoxConstraint(
+        [np.pi],
+        [np.pi],
+        [State(*q[2]).torso_shoulder_joint_q],
+    )
+
+    state_guess = np.array(
+        [
+            State(
+                x_x=0.0,
+                z_x=0.0,
+                theta_q=0.0,
+                torso_shoulder_joint_q=np.pi,
+                shoulder_hand_joint_x=0.4,
+                torso_upper_leg_joint_q=np.pi/2.0,
+                upper_leg_lower_leg_joint_q=np.pi/2.0,
+            ),
+            State(
+                x_x=0.0,
+                z_x=0.0,
+                theta_q=0.0,
+                torso_shoulder_joint_q=np.pi / 2.0,
+                shoulder_hand_joint_x=0.2,
+                torso_upper_leg_joint_q=np.pi/2.0,
+                upper_leg_lower_leg_joint_q=np.pi/2.0,
+            ),
+            State(
+                x_x=0.0,
+                z_x=0.0,
+                theta_q=0.0,
+                torso_shoulder_joint_q=np.pi,
+                shoulder_hand_joint_x=0.4,
+                torso_upper_leg_joint_q=np.pi/2.0,
+                upper_leg_lower_leg_joint_q=np.pi/2.0,
+            ),
+        ]
+    )
+
+    initial_guess = np.zeros(prog.num_vars())
+    prog.SetDecisionVariableValueInVector(q, state_guess, initial_guess)
+
+    solver = SnoptSolver()
+    result = solver.Solve(prog, initial_guess)
+    print("key frame opt result:", result.get_solution_result())
+    return result.GetSolution(q)
 
 
 def get_initial_guess(
@@ -382,46 +467,27 @@ def get_initial_guess(
     t_contact: int,
     prog: MathematicalProgram,
     q: np.ndarray,
-    q_dot: np.ndarray,
     f: np.ndarray,
+    plant: tuple[MultibodyPlant, Context],
 ) -> np.ndarray:
+    key_frames = get_key_frames(plant)
     out = np.ones(prog.num_vars())
     q_guess = np.zeros_like(q)
-    q_dot_guess = np.zeros_like(q_dot)
-    initial_z = 2.11
-    final_z = 2.11 + 0.3
-    z_step = (final_z - initial_z) / (num_timesteps - t_contact)
-    for t in range(q.shape[0]):
-        dz = z_step * t if t > t_contact else 0.0
-        z_target = initial_z + dz
-        q_guess[t, :] = State(
-            world_torso_qw=1.0,
-            world_torso_qx=0.0,
-            world_torso_qy=0.0,
-            world_torso_qz=0.0,
-            world_torso_x=-0.05,
-            world_torso_y=0.0,
-            world_torso_z=z_target,
-            torso_shoulder_joint_q=np.pi,
-            shoulder_hand_joint_x=0.3,
-            torso_upper_leg_joint_q=0.0,
-            upper_leg_lower_leg_joint_q=0.0,
-        )
 
-        q_dot_guess[t, :] = StateDot(
-            world_torso_qx=0.0,
-            world_torso_qy=0.1,
-            world_torso_qz=0.0,
-            world_torso_x=0.0,
-            world_torso_y=0.0,
-            world_torso_z=dz,
-            torso_shoulder_joint_q=0.0,
-            shoulder_hand_joint_x=0.0,
-            torso_upper_leg_joint_q=0.0,
-            upper_leg_lower_leg_joint_q=0.0,
-        )
+    t_flight = q.shape[0] - t_contact
+
+    def lerp(a: State, b: State, frac: float):
+        return State(*[(b[i] - a[i]) * frac + a[i] for i in range(len(a))])
+
+    initial_state = State(*key_frames[0])
+    release_state = State(*key_frames[1])
+    catch_state = State(*key_frames[2])
+
+    for t in range(t_contact):
+        q_guess[t, :] = lerp(initial_state, release_state, t / t_contact)
+    for t in range(t_flight):
+        q_guess[t + t_contact, :] = lerp(release_state, catch_state, t / t_flight)
     prog.SetDecisionVariableValueInVector(q, q_guess, out)
-    prog.SetDecisionVariableValueInVector(q_dot, q_dot_guess, out)
     return out
 
 
@@ -448,8 +514,8 @@ def package_trajectory(
 
 
 def plan_trajectory(diagram: Diagram) -> Trajectory:
-    T = 100
-    T_CONTACT = 50
+    T = 150
+    T_CONTACT = 75
     root_context = diagram.CreateDefaultContext()
     plant = diagram.GetSubsystemByName("plant")
     context = plant.GetMyContextFromRoot(root_context)
@@ -484,18 +550,31 @@ def plan_trajectory(diagram: Diagram) -> Trajectory:
         f,
     )
 
-    for t in range(u.shape[0]):
-        prog.AddL2NormCost(A=np.diag([0.1, 0.1, 1.0, 1.0]), b=np.zeros((4, 1)), vars=u[t])
+    for t in range(q.shape[0]):
+        prog.AddQuadraticCost(
+            Q=np.identity(nq) * 0.01, b=np.zeros((nq)), vars=q[t], is_convex=True
+        )
+        prog.AddQuadraticCost(
+            Q=np.identity(nq) * 0.01, b=np.zeros((nq)), vars=q_dot[t], is_convex=True
+        )
 
-    initial_guess = get_initial_guess(T, T_CONTACT, prog, q, q_dot, f)
+    for t in range(u.shape[0]):
+        prog.AddQuadraticCost(
+            Q=np.diag([0.25, 0.25, 1.0, 1.0]),
+            b=np.zeros((nu,)),
+            vars=u[t],
+            is_convex=True,
+        )
+
+    initial_guess = get_initial_guess(T, T_CONTACT, prog, q, f, (plant_ad, context_ad))
 
     solver = SnoptSolver()
-    solver_options = SolverOptions()
-    solver_options.SetOption(CommonSolverOption.kPrintToConsole, 1)
-    # solver_options.SetOption(SnoptSolver.id(), "Iterations limit", 1000000)
-    # solver_options.SetOption(SnoptSolver.id(), "Major Iterations limit", 1000000)
-    print(solver_options.GetOptions(solver.id()))
+    options = SolverOptions()
+    options.SetOption(CommonSolverOption.kPrintFileName, "/tmp/solver.txt")
+    options.SetOption(solver.id(), 'Minor print level', "0")
     result = solver.Solve(
-        prog, initial_guess=initial_guess, solver_options=solver_options
+        prog,
+        initial_guess=initial_guess,
+        solver_options=options,
     )
     return package_trajectory(prog, result, dt, q, q_dot, q_ddot, u, f)

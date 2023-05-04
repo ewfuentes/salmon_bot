@@ -55,6 +55,12 @@ def load_model(world_path: str, robot_path: str, meshcat: MeshcatVisualizer):
         X_FM=RigidTransform.Identity(),
     )
 
+    plant.WeldFrames(
+        frame_on_parent_F=plant.world_frame(),
+        frame_on_child_M=plant.GetFrameByName("origin_link"),
+        X_FM=RigidTransform.Identity(),
+    )
+
     MeshcatVisualizer.AddToBuilder(builder, scene_graph, meshcat)
 
     plant.Finalize()
@@ -70,17 +76,13 @@ def set_initial_conditions(diagram: Diagram, context: Context):
         plant_context,
         np.array(
             [
-                1.0,
-                0.0,
-                0.0,
-                0.0,  # world_from_torso quaternion
-                -0.05,
-                0.0,
-                1.8,  # world_from_torso translations
-                3.14,  # Torso - shoulder joint
-                0.38,  # shoulder - hand joint
-                0.0,  # torso upper_leg joint
-                0.0,  # upper_leg lower_leg joint
+                -0.05,  # x
+                1.8,    # z
+                0.0,    # theta
+                3.14,   # Torso - shoulder joint
+                0.38,   # shoulder - hand joint
+                0.0,    # torso upper_leg joint
+                0.0,    # upper_leg lower_leg joint
             ]
         ),
     )

@@ -138,18 +138,18 @@
     </visual>
   </link>
 
-  <joint name="origin_x_joint" type="prismatic">
+  <joint name="x" type="prismatic">
     <parent link="origin_link" />
     <child link="x_link" />
     <axis xyz="1 0 0" />
   </joint>
 
-  <joint name="x_z_joint" type="prismatic">
+  <joint name="z" type="prismatic">
     <parent link="x_link" />
     <child link="z_link" />
     <axis xyz="0 0 1" />
   </joint>
-  <joint name="z_torso_joint" type="continuous">
+  <joint name="theta" type="continuous">
     <parent link="z_link" />
     <child link="torso" />
     <axis xyz="0 1 0" />
