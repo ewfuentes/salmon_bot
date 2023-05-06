@@ -21,8 +21,15 @@ from pydrake.all import (
 import numpy as np
 import time
 import IPython
+import matplotlib.pyplot as plt
 
-from salmonbot.trajectory_planner import plan_trajectory, Trajectory
+from salmonbot.trajectory_planner import (
+    plan_trajectory,
+    Trajectory,
+    State,
+    StateDot,
+    Control,
+)
 
 np.set_printoptions(linewidth=200)
 
@@ -77,12 +84,12 @@ def set_initial_conditions(diagram: Diagram, context: Context):
         np.array(
             [
                 -0.05,  # x
-                1.8,    # z
-                0.0,    # theta
-                3.14,   # Torso - shoulder joint
-                0.38,   # shoulder - hand joint
-                0.0,    # torso upper_leg joint
-                0.0,    # upper_leg lower_leg joint
+                1.8,  # z
+                0.0,  # theta
+                3.14,  # Torso - shoulder joint
+                0.38,  # shoulder - hand joint
+                0.0,  # torso upper_leg joint
+                0.0,  # upper_leg lower_leg joint
             ]
         ),
     )
@@ -141,6 +148,33 @@ def visualize_trajectory(
     meshcat.DeleteButton(STOP_TRAJECTORY_VIZ_STR)
 
 
+def plot_trajectory(traj: Trajectory):
+    t = np.concatenate([[0.0], np.cumsum(traj.t)])
+
+    plt.figure()
+    plt.plot(t, traj.state, label=State._fields)
+    plt.title("States over time")
+    plt.legend()
+
+    plt.figure()
+    plt.plot(t, traj.state_dot, label=StateDot._fields)
+    plt.title("State dot over time")
+    plt.legend()
+
+    plt.figure()
+    plt.plot(t, traj.state_ddot, label=StateDot._fields)
+    plt.title("State ddot over time")
+    plt.legend()
+
+    plt.figure()
+    plt.plot(t, traj.control, label=Control._fields)
+    plt.plot(t, traj.contact_force, label=["Contact x", "Contact y"])
+    plt.title("Control over time")
+    plt.legend()
+
+    plt.show()
+
+
 def run(world_path: str, robot_path: str):
     meshcat = StartMeshcat()
     # Build a diagram
@@ -159,7 +193,10 @@ def run(world_path: str, robot_path: str):
     print(
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
     )
+
+    plot_trajectory(trajectory)
     visualize_trajectory(meshcat, trajectory, simulator, diagram, context)
+
     IPython.embed()
 
     # Build a controller
