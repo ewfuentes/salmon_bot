@@ -131,11 +131,23 @@ def add_hand_constraints(
         description="hand_x_-1",
     )
 
+    # Don't collide with the upright
+    for t in range(q.shape[0]):
+        prog.AddConstraint(
+            lambda q_t: frame_x_position(plant, plant_ad, q_t, "hand"),
+            lb=[-np.inf],
+            ub=[FINAL_HAND_X],
+            vars=q[t],
+            description="hand_x_-1",
+        )
+
 
 def add_joint_limit_constraints(
     plant: tuple[MultibodyPlant, Context],
     plant_ad: tuple[MultibodyPlant, Context],
     q: np.ndarray,
+    q_dot: np.ndarray,
+    u: np.ndarray,
     prog: MathematicalProgram,
 ):
     for t in range(q.shape[0]):
@@ -144,6 +156,20 @@ def add_joint_limit_constraints(
             lb=plant[0].GetPositionLowerLimits(),
             ub=plant[0].GetPositionUpperLimits(),
             vars=q[t],
+        )
+
+        prog.AddLinearConstraint(
+            np.identity(len(q_dot[t])),
+            lb=plant[0].GetVelocityLowerLimits(),
+            ub=plant[0].GetVelocityUpperLimits(),
+            vars=q_dot[t],
+        )
+    for t in range(u.shape[0]):
+        prog.AddLinearConstraint(
+            np.identity(len(u[t])),
+            lb=plant[0].GetEffortLowerLimits(),
+            ub=plant[0].GetEffortUpperLimits(),
+            vars=u[t],
         )
 
 
@@ -406,7 +432,7 @@ def add_constraints(
     add_initial_state_constraints(plant, plant_ad, q, q_dot, prog)
     add_contact_constraints(plant, plant_ad, q, f, t_contact, prog)
     add_hand_constraints(plant, plant_ad, q, prog)
-    add_joint_limit_constraints(plant, plant_ad, q, prog)
+    add_joint_limit_constraints(plant, plant_ad, q, q_dot, u, prog)
     add_positive_velocity_on_release_constraint(plant, plant_ad, q_dot, t_contact, prog)
     add_time_step_constraints(dt, t_contact, prog)
     add_dynamics_constraints(plant, plant_ad, dt, q, q_dot, q_ddot, u, f, prog)
@@ -568,36 +594,25 @@ def add_costs(
     t_contact: int,
     q: np.ndarray,
     q_dot: np.ndarray,
+    q_ddot: np.ndarray,
     u: np.ndarray,
 ):
     nq = q.shape[1]
     nu = u.shape[1]
     for t in range(q.shape[0]):
         prog.AddQuadraticCost(
-            Q=np.identity(nq) * 0.01, b=np.zeros((nq)), vars=q[t], is_convex=True
+            Q=np.identity(nq) * 1.0, b=np.zeros((nq)), vars=q[t], is_convex=True
         )
         prog.AddQuadraticCost(
-            Q=np.identity(nq) * 0.01, b=np.zeros((nq)), vars=q_dot[t], is_convex=True
+            Q=np.identity(nq) * 10.0, b=np.zeros((nq)), vars=q_dot[t], is_convex=True
         )
-
-        if t < t_contact:
-            continue
-
-        # WEIGHT = 100.0
-        # prog.AddCost(
-        #     lambda q_t: WEIGHT
-        #     * (frame_x_position(plant, plant_ad, q_t, "hand")[0] - FINAL_HAND_X) ** 2,
-        #     vars=q[t],
-        # )
-        # prog.AddCost(
-        #     lambda q_t: WEIGHT
-        #     * (frame_z_position(plant, plant_ad, q_t, "hand")[0] - FINAL_HAND_Z) ** 2,
-        #     vars=q[t],
-        # )
+        prog.AddQuadraticCost(
+            Q=np.identity(nq) * 1.0, b=np.zeros((nq)), vars=q_ddot[t], is_convex=True
+        )
 
     for t in range(u.shape[0]):
         prog.AddQuadraticCost(
-            Q=np.diag([0.25, 0.25, 1.0, 1.0]),
+            Q=np.diag([10.0, 10.0, 1.0, 1.0]),
             b=np.zeros((nu,)),
             vars=u[t],
             is_convex=True,
@@ -648,6 +663,7 @@ def plan_trajectory(diagram: Diagram) -> Trajectory:
         T_CONTACT,
         q,
         q_dot,
+        q_ddot,
         u,
     )
 
