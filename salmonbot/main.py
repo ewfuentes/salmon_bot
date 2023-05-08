@@ -24,12 +24,13 @@ import IPython
 import matplotlib.pyplot as plt
 
 from salmonbot.trajectory_planner import (
-    plan_trajectory,
     Trajectory,
     State,
     StateDot,
     Control,
 )
+
+from salmonbot.ladder_climb import plan_ladder_climb
 
 np.set_printoptions(linewidth=200)
 
@@ -188,7 +189,7 @@ def run(world_path: str, robot_path: str):
     set_initial_conditions(diagram, context)
 
     # Plan a trajectory
-    trajectory = plan_trajectory(diagram)
+    trajectory = plan_ladder_climb(diagram)
 
     print(
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"

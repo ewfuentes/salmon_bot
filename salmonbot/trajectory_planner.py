@@ -175,33 +175,18 @@ def add_joint_limit_constraints(
 
 def add_time_step_constraints(
     dt: np.ndarray,
-    t_contact: int,
     prog: MathematicalProgram,
-    min_dt_s=0.001,
-    max_dt_s=0.1,
+    min_dt_s=0.01,
+    max_dt_s=0.5,
 ):
-    contact_dt = dt[:t_contact]
-    flight_dt = dt[t_contact:]
-    for i in range(1, len(contact_dt)):
+    for i in range(1, len(dt)):
         prog.AddLinearConstraint(
-            contact_dt[i-1, 0] - contact_dt[i, 0],
+            dt[i-1, 0] - dt[i, 0],
             lb=0.0,
             ub=0.0,
         )
-    for i in range(1, len(flight_dt)):
-        prog.AddLinearConstraint(
-            flight_dt[i-1, 0] - flight_dt[i, 0],
-            lb=0.0,
-            ub=0.0,
-        )
-
     prog.AddLinearConstraint(
-        flight_dt[0, 0],
-        lb=min_dt_s,
-        ub=max_dt_s,
-    )
-    prog.AddLinearConstraint(
-        contact_dt[0, 0],
+        dt[0, 0],
         lb=min_dt_s,
         ub=max_dt_s,
     )
@@ -249,7 +234,7 @@ def compute_manipulator_violation(
     J = get_hand_jacobian(p)
     B = p[0].MakeActuationMatrix()
 
-    out = M @ q_ddot + Cv - TauG - J.T @ np.array([f[0], 0.0, f[1]]) + B @ u
+    out = M @ q_ddot + Cv - TauG - J.T @ np.array([f[0], 0.0, f[1]]) - B @ u
     return out
 
 
@@ -287,7 +272,7 @@ def add_dynamics_constraints(
     prog: MathematicalProgram,
 ):
     q_ddot_size = q_ddot.shape[1]
-    for i in range(u.shape[0]):
+    for i in range(q.shape[0]):
         vars = np.concatenate([q[i], q_dot[i], q_ddot[i], u[i], f[i]])
         prog.AddConstraint(
             lambda vars: compute_manipulator_violation(plant, plant_ad, vars),
@@ -302,7 +287,7 @@ def add_dynamics_constraints(
             [dt[i], q[i], q_dot[i], q_ddot[i], q[i + 1], q_dot[i + 1], q_ddot[i + 1]]
         )
         prog.AddConstraint(
-            lambda vars: compute_integration_violation(plant, plant_ad, vars),
+            lambda vars: compute_integration_violation(plant, plant_ad, vars) * 10,
             lb=[0.0] * x_size,
             ub=[0.0] * x_size,
             vars=vars,
@@ -347,6 +332,11 @@ def add_contact_constraints(
                 lb=[0.0] * 2,
                 ub=[0.0] * 2,
                 vars=vars,
+            )
+            prog.AddBoundingBoxConstraint(
+                0.0,
+                np.inf,
+                f[t, 1],
             )
         elif t >= t_contact:
             prog.AddBoundingBoxConstraint([0.0, 0.0], [0.0, 0.0], f[t])
@@ -397,7 +387,7 @@ def add_initial_state_constraints(plant: tuple[MultibodyPlant, Context],
     )
 
     prog.AddBoundingBoxConstraint(
-        [np.pi -0.01],
+        [np.pi - 0.01],
         [np.pi - 0.01],
         [State(*q[0]).torso_shoulder_joint_q]
     )
@@ -591,7 +581,6 @@ def add_costs(
     plant: tuple[MultibodyPlant, Context],
     plant_ad: tuple[MultibodyPlant, Context],
     prog: MathematicalProgram,
-    t_contact: int,
     q: np.ndarray,
     q_dot: np.ndarray,
     q_ddot: np.ndarray,
@@ -617,67 +606,3 @@ def add_costs(
             vars=u[t],
             is_convex=True,
         )
-
-
-def plan_trajectory(diagram: Diagram) -> Trajectory:
-    T = 30
-    T_CONTACT = 15
-    root_context = diagram.CreateDefaultContext()
-    plant = diagram.GetSubsystemByName("plant")
-    context = plant.GetMyContextFromRoot(root_context)
-
-    diagram_ad = diagram.ToAutoDiffXd()
-    root_context_ad = diagram_ad.CreateDefaultContext()
-    plant_ad = diagram_ad.GetSubsystemByName("plant")
-    context_ad = plant_ad.GetMyContextFromRoot(root_context_ad)
-    prog = MathematicalProgram()
-
-    nq = plant_ad.num_positions()
-    nqd = plant_ad.num_velocities()
-    nu = plant_ad.num_actuators()
-
-    dt = prog.NewContinuousVariables(rows=T, cols=1, name="dt")
-    q = prog.NewContinuousVariables(rows=T + 1, cols=nq, name="q")
-    q_dot = prog.NewContinuousVariables(rows=T + 1, cols=nqd, name="q_dot")
-    q_ddot = prog.NewContinuousVariables(rows=T + 1, cols=nqd, name="q_ddot")
-    u = prog.NewContinuousVariables(rows=T + 1, cols=nu, name="u")
-    f = prog.NewContinuousVariables(rows=T + 1, cols=2, name="f")
-
-    add_constraints(
-        (plant, context),
-        (plant_ad, context_ad),
-        prog,
-        T_CONTACT,
-        dt,
-        q,
-        q_dot,
-        q_ddot,
-        u,
-        f,
-    )
-
-    add_costs(
-        (plant, context),
-        (plant_ad, context_ad),
-        prog,
-        T_CONTACT,
-        q,
-        q_dot,
-        q_ddot,
-        u,
-    )
-
-    initial_guess = get_initial_guess(T, T_CONTACT, prog, q, f, (plant_ad, context_ad))
-
-    solver = SnoptSolver()
-    options = SolverOptions()
-    options.SetOption(CommonSolverOption.kPrintFileName, "/tmp/solver.txt")
-    options.SetOption(solver.id(), "Minor print level", "0")
-    options.SetOption(solver.id(), "Iterations Limit", "100000")
-    options.SetOption(solver.id(), "Solution", "No")
-    result = solver.Solve(
-        prog,
-        initial_guess=initial_guess,
-        solver_options=options,
-    )
-    return package_trajectory(prog, result, dt, q, q_dot, q_ddot, u, f)
