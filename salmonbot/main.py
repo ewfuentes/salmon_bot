@@ -120,7 +120,15 @@ def visualize_trajectory(
     STOP_TRAJECTORY_VIZ_STR = "Stop Trajectory Viz"
     TIMESTEP_SLIDER_STR = "Timestep Selector"
     meshcat.AddButton(STOP_TRAJECTORY_VIZ_STR)
-    meshcat.AddSlider(TIMESTEP_SLIDER_STR, 0, len(t) - 1, step=1.0, value=0.0)
+    meshcat.AddSlider(
+        TIMESTEP_SLIDER_STR,
+        0,
+        len(t) - 1,
+        step=1.0,
+        value=0.0,
+        decrement_keycode="ArrowLeft",
+        increment_keycode="ArrowRight",
+    )
     plant: MultibodyPlant = diagram.GetSubsystemByName("plant")
     plant_context = plant.GetMyContextFromRoot(context)
     simulator.Initialize()
@@ -177,6 +185,26 @@ def plot_trajectory(traj: Trajectory):
     plt.show()
 
 
+def tile_trajectory(traj: Trajectory, target_spacing_z_m: float, tile_count: int = 4):
+    out = {}
+    for name, field in traj._asdict().items():
+        if name == "is_successful":
+            out[name] = True
+        else:
+            first_idx = 21 if name == "t" else 22
+            offset = (
+                np.array([0.0, target_spacing_z_m, 0.0, 0.0, 0.0, 0.0, 0.0])
+                if name == "state"
+                else 0.0
+            )
+            out[name] = [field[:first_idx]] + [
+                field[first_idx:] + i * offset for i in range(tile_count)
+            ]
+            out[name] = np.concatenate(out[name])
+
+    return Trajectory(**out)
+
+
 def run(world_path: str, robot_path: str, saved_trajectory: None | str):
     meshcat = StartMeshcat()
     # Build a diagram
@@ -191,11 +219,14 @@ def run(world_path: str, robot_path: str, saved_trajectory: None | str):
 
     # Plan a trajectory
     if saved_trajectory:
-        with open(saved_trajectory, 'rb') as file_in:
+        with open(saved_trajectory, "rb") as file_in:
             trajectory = pickle.load(file_in)
     else:
         trajectory = plan_ladder_climb(diagram)
         IPython.embed()
+
+    target_spacing_z_m = 0.3
+    trajectory = tile_trajectory(trajectory, target_spacing_z_m)
 
     print(
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
