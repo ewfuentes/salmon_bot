@@ -22,6 +22,7 @@ import numpy as np
 import time
 import IPython
 import matplotlib.pyplot as plt
+import pickle
 
 from salmonbot.trajectory_planner import (
     Trajectory,
@@ -176,7 +177,7 @@ def plot_trajectory(traj: Trajectory):
     plt.show()
 
 
-def run(world_path: str, robot_path: str):
+def run(world_path: str, robot_path: str, saved_trajectory: None | str):
     meshcat = StartMeshcat()
     # Build a diagram
     diagram, scene_graph = load_model(world_path, robot_path, meshcat)
@@ -189,7 +190,12 @@ def run(world_path: str, robot_path: str):
     set_initial_conditions(diagram, context)
 
     # Plan a trajectory
-    trajectory = plan_ladder_climb(diagram)
+    if saved_trajectory:
+        with open(saved_trajectory, 'rb') as file_in:
+            trajectory = pickle.load(file_in)
+    else:
+        trajectory = plan_ladder_climb(diagram)
+        IPython.embed()
 
     print(
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
@@ -197,8 +203,6 @@ def run(world_path: str, robot_path: str):
 
     plot_trajectory(trajectory)
     visualize_trajectory(meshcat, trajectory, simulator, diagram, context)
-
-    IPython.embed()
 
     # Build a controller
 
@@ -216,7 +220,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--robot", help="path to robot URDF model", required=True)
     parser.add_argument("--world", help="path to world URDF model", required=True)
+    parser.add_argument("--saved_trajectory", help="path saved trajectory")
 
     args = parser.parse_args()
 
-    run(args.world, args.robot)
+    run(args.world, args.robot, args.saved_trajectory)

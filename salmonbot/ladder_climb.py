@@ -16,7 +16,6 @@ from salmonbot.trajectory_planner import (
     Trajectory,
     State,
     frame_x_position,
-    frame_x_axis,
     frame_z_position,
     add_contact_constraints,
     add_joint_limit_constraints,
@@ -24,6 +23,8 @@ from salmonbot.trajectory_planner import (
     add_dynamics_constraints,
     add_positive_velocity_on_release_constraint,
 )
+
+from salmonbot.generate_initial_guess import get_initial_guess
 
 
 def get_initial_state(
@@ -158,7 +159,8 @@ def add_trajectory_costs(
         split_at = np.cumsum(sizes)
         dt, u = np.split(vars, split_at[:-1])
 
-        return dt[0] * 100.0 * np.sum(u @ np.diag([0.1, 0.1, 1.0, 1.0]) @ u)
+        return np.sum(u @ np.diag([0.1, 0.1, 1.0, 1.0]) @ u)
+        # return dt[0] * 100.0 * np.sum(u @ np.diag([0.1, 0.1, 1.0, 1.0]) @ u)
 
     def state_cost(vars: np.ndarray):
         ndt = 1
@@ -166,7 +168,8 @@ def add_trajectory_costs(
         split_at = np.cumsum(sizes)
         dt, q_ddot = np.split(vars, split_at[:-1])
 
-        return dt[0] * 100.0 * np.sum(q_ddot * q_ddot)
+        return np.sum(q_ddot * q_ddot)
+        # return dt[0] * 100.0 * np.sum(q_ddot * q_ddot)
 
     for t in range(traj.state.shape[0]):
         prog.AddCost(control_cost, np.concatenate([dt, traj.control[t]]))
@@ -179,7 +182,7 @@ def plan_swing_up(
     pc_ad: tuple[MultibodyPlant, Context],
     prev_traj: Trajectory,
     index: int,
-    num_timesteps=20,
+    num_timesteps=12,
 ) -> Trajectory:
     nq = pc[0].num_positions()
     nqd = pc[0].num_velocities()
@@ -268,15 +271,154 @@ def add_upright_collision_constraint(
         )
 
 
-def plan_flight(
+def add_hand_ceiling_constraints(
+    pc: tuple[MultibodyPlant, Context],
+    pc_ad: tuple[MultibodyPlant, Context],
+    traj: Trajectory,
+    max_z_m: float,
+    prog: MathematicalProgram,
+):
+    for t in range(traj.state.shape[0]):
+        prog.AddConstraint(
+            lambda q_t: frame_z_position(pc, pc_ad, q_t, "hand"),
+            lb=[-np.inf],
+            ub=[max_z_m],
+            vars=traj.state[t],
+        )
+
+
+def plan_takeoff(
     prog: MathematicalProgram,
     pc: tuple[MultibodyPlant, Context],
     pc_ad: tuple[MultibodyPlant, Context],
     prev_traj: Trajectory,
+    index: int,
+    upright_x_m: float,
+    max_z_m: float,
+    num_timesteps: int = 3,
+) -> Trajectory:
+    nq = pc[0].num_positions()
+    nqd = pc[0].num_velocities()
+    nu = pc[0].num_actuators()
+    traj_out = Trajectory(
+        t=prog.NewContinuousVariables(rows=num_timesteps, cols=1, name=f"t_dt_{index}"),
+        state=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nq, name=f"t_q_{index}"
+        ),
+        state_dot=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nqd, name=f"t_q_dot_{index}"
+        ),
+        state_ddot=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nqd, name=f"t_q_ddot_{index}"
+        ),
+        control=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nu, name=f"t_u_{index}"
+        ),
+        contact_force=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=2, name=f"t_f_{index}"
+        ),
+        is_successful=False,
+    )
+
+    add_consistency_constraint(prog, prev_traj, traj_out)
+    add_contact_constraints(pc, pc_ad, traj_out.state, traj_out.contact_force, 0, prog)
+    add_joint_limit_constraints(
+        pc, pc_ad, traj_out.state, traj_out.state_dot, traj_out.control, prog
+    )
+    add_positive_velocity_on_release_constraint(pc, pc_ad, traj_out.state_dot, 0, prog)
+    add_time_step_constraints(traj_out.t, prog)
+    add_trajectory_dynamics_constraints(pc, pc_ad, traj_out, prog)
+    add_hand_ceiling_constraints(pc, pc_ad, traj_out, max_z_m, prog)
+    add_upright_collision_constraint(pc, pc_ad, traj_out, upright_x_m, prog)
+
+    # add costs
+    add_trajectory_costs(traj_out, prog)
+
+    return traj_out
+
+
+def add_hand_clearance_constraints(
+    pc: tuple[MultibodyPlant, Context],
+    pc_ad: tuple[MultibodyPlant, Context],
+    traj: Trajectory,
+    clear_x_m: float,
+    clear_z_m: float,
+    prog: MathematicalProgram,
+):
+    for t in range(traj.state.shape[0]):
+        prog.AddConstraint(
+            lambda q_t: frame_x_position(pc, pc_ad, q_t, "hand"),
+            lb=[-np.inf],
+            ub=[clear_x_m],
+            vars=traj.state[t],
+        )
+
+    prog.AddConstraint(
+        lambda q_t: frame_z_position(pc, pc_ad, q_t, "hand"),
+        lb=[clear_z_m],
+        ub=[np.inf],
+        vars=traj.state[-1],
+    )
+
+
+def plan_clear_hook(
+    prog: MathematicalProgram,
+    pc: tuple[MultibodyPlant, Context],
+    pc_ad: tuple[MultibodyPlant, Context],
+    prev_traj: Trajectory,
+    index: int,
+    clear_x_m: float,
+    clear_z_m: float,
+    num_timesteps: int = 3,
+) -> Trajectory:
+    nq = pc[0].num_positions()
+    nqd = pc[0].num_velocities()
+    nu = pc[0].num_actuators()
+    traj_out = Trajectory(
+        t=prog.NewContinuousVariables(rows=num_timesteps, cols=1, name=f"c_dt_{index}"),
+        state=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nq, name=f"c_q_{index}"
+        ),
+        state_dot=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nqd, name=f"c_q_dot_{index}"
+        ),
+        state_ddot=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nqd, name=f"c_q_ddot_{index}"
+        ),
+        control=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=nu, name=f"c_u_{index}"
+        ),
+        contact_force=prog.NewContinuousVariables(
+            rows=num_timesteps + 1, cols=2, name=f"c_f_{index}"
+        ),
+        is_successful=False,
+    )
+
+    add_consistency_constraint(prog, prev_traj, traj_out)
+    add_contact_constraints(pc, pc_ad, traj_out.state, traj_out.contact_force, 0, prog)
+    add_joint_limit_constraints(
+        pc, pc_ad, traj_out.state, traj_out.state_dot, traj_out.control, prog
+    )
+    add_positive_velocity_on_release_constraint(pc, pc_ad, traj_out.state_dot, 0, prog)
+    add_time_step_constraints(traj_out.t, prog)
+    add_trajectory_dynamics_constraints(pc, pc_ad, traj_out, prog)
+    add_hand_clearance_constraints(pc, pc_ad, traj_out, clear_x_m, clear_z_m, prog)
+
+    # add costs
+    add_trajectory_costs(traj_out, prog)
+
+    return traj_out
+
+
+def plan_land(
+    prog: MathematicalProgram,
+    pc: tuple[MultibodyPlant, Context],
+    pc_ad: tuple[MultibodyPlant, Context],
+    prev_traj: Trajectory,
+    index: int,
     target_x_m: float,
     target_z_m: float,
-    index: int,
-    num_timesteps=20,
+    num_timesteps: int = 3,
 ) -> Trajectory:
     nq = pc[0].num_positions()
     nqd = pc[0].num_velocities()
@@ -300,8 +442,7 @@ def plan_flight(
         ),
         is_successful=False,
     )
-    # Add Constraints
-    # Consistency with previous trajectory
+
     add_consistency_constraint(prog, prev_traj, traj_out)
     add_contact_constraints(pc, pc_ad, traj_out.state, traj_out.contact_force, 0, prog)
     add_joint_limit_constraints(
@@ -338,115 +479,6 @@ def package_trajectory(result: MathematicalProgramResult, trajs: list[Trajectory
     return Trajectory(**fields)
 
 
-def get_key_frames(
-    pc: tuple[MultibodyPlant, Context],
-    pc_ad: tuple[MultibodyPlant, Context],
-    target_x_m: float,
-    hand_height_targets_m: list[float],
-):
-    prog = MathematicalProgram()
-    q = prog.NewContinuousVariables(
-        rows=len(hand_height_targets_m) * 2 - 1, cols=pc[0].num_positions()
-    )
-
-    for i, target_z_m in enumerate(hand_height_targets_m):
-        # Add hanging constraints
-        prog.AddConstraint(
-            lambda q_t: [frame_x_position(pc, pc_ad, q_t, "hand")],
-            [target_x_m],
-            [target_x_m],
-            vars=q[2 * i],
-        )
-
-        prog.AddConstraint(
-            lambda q_t: [frame_z_position(pc, pc_ad, q_t, "hand")],
-            [target_z_m],
-            [target_z_m],
-            vars=q[2 * i],
-        )
-
-        eps = 1e-3
-        prog.AddConstraint(
-            lambda q_t: [State(*q_t).torso_shoulder_joint_q],
-            [np.pi - eps],
-            [np.pi - eps],
-            vars=q[2 * i],
-        )
-
-        prog.AddConstraint(
-            lambda q_t: [State(*q_t).shoulder_hand_joint_x],
-            [0.4],
-            [0.4],
-            vars=q[2 * i],
-        )
-
-        if i == len(hand_height_targets_m) - 1:
-            break
-
-        # Add launching constraints
-        prog.AddConstraint(
-            lambda q_t: [frame_x_position(pc, pc_ad, q_t, "hand")],
-            [target_x_m],
-            [target_x_m],
-            vars=q[2 * i + 1],
-        )
-
-        prog.AddConstraint(
-            lambda q_t: [frame_z_position(pc, pc_ad, q_t, "hand")],
-            [target_z_m],
-            [target_z_m],
-            vars=q[2 * i + 1],
-        )
-
-        prog.AddConstraint(
-            lambda q_t: [State(*q_t).torso_shoulder_joint_q],
-            [np.pi / 2.0],
-            [np.pi / 2.0],
-            vars=q[2 * i + 1],
-        )
-
-        prog.AddConstraint(
-            lambda q_t: [State(*q_t).shoulder_hand_joint_x],
-            [0.2],
-            [0.2],
-            vars=q[2 * i + 1],
-        )
-
-    solver = SnoptSolver()
-    result: MathematicalProgramResult = solver.Solve(prog)
-    assert result.is_success()
-    return result.GetSolution(q)
-
-
-def get_initial_guess(
-    pc: tuple[MultibodyPlant, Context],
-    pc_ad: tuple[MultibodyPlant, Context],
-    prog: MathematicalProgram,
-    traj_vars: list[Trajectory],
-    target_x_m: float,
-    hand_height_targets_m: list[float],
-) -> np.ndarray:
-    out = np.zeros(prog.num_vars())
-
-    key_frames = get_key_frames(pc, pc_ad, target_x_m, hand_height_targets_m)
-
-    def lerp(a: State, b: State, frac: float):
-        return State(*[(b[i] - a[i]) * frac + a[i] for i in range(len(a))])
-
-    for i, traj in enumerate(traj_vars):
-        if traj.t is not None:
-            t_guess = np.ones_like(traj.t, dtype=np.float64) * 0.25
-            prog.SetDecisionVariableValueInVector(traj.t, t_guess, out)
-            nt = traj.state.shape[0]
-            q_guess = np.zeros_like(traj.state)
-            print('lerping between\n', key_frames[i-1], '\n', key_frames[i])
-            for t in range(traj.state.shape[0]):
-                q_guess[t, :] = lerp(key_frames[i-1], key_frames[i], t / nt)
-            prog.SetDecisionVariableValueInVector(traj.state, q_guess, out)
-
-    return out
-
-
 def plan_ladder_climb(diagram: Diagram):
     prog = MathematicalProgram()
 
@@ -461,6 +493,10 @@ def plan_ladder_climb(diagram: Diagram):
 
     hand_height_targets_m = [2.11, 2.41, 2.71]
     target_x_m = -0.05
+    hook_length_x_m = -0.08
+    hook_length_z_m = 0.06
+    free_above_hook_clearance_m = 0.2
+    hook_spacing_m = 0.3
 
     trajectory_vars = [
         get_initial_state(
@@ -479,24 +515,50 @@ def plan_ladder_climb(diagram: Diagram):
             )
         )
         trajectory_vars.append(
-            plan_flight(
+            plan_takeoff(
                 prog,
                 (plant, context),
                 (plant_ad, context_ad),
                 trajectory_vars[-1],
-                target_x_m,
-                target_z_m,
                 i,
+                target_x_m,
+                target_z_m - hook_spacing_m + free_above_hook_clearance_m,
+            )
+        )
+        trajectory_vars.append(
+            plan_clear_hook(
+                prog,
+                (plant, context),
+                (plant_ad, context_ad),
+                trajectory_vars[-1],
+                i,
+                target_x_m + hook_length_x_m,
+                target_z_m + hook_length_z_m,
             )
         )
 
-    add_cycle_consistency_constraint(prog, trajectory_vars[-2], trajectory_vars[-1])
+        trajectory_vars.append(
+            plan_land(
+                prog,
+                (plant, context),
+                (plant_ad, context_ad),
+                trajectory_vars[-1],
+                i,
+                target_x_m,
+                target_z_m,
+            )
+        )
+
+    add_cycle_consistency_constraint(prog, trajectory_vars[-4], trajectory_vars[-1])
     initial_guess = get_initial_guess(
         (plant, context),
         (plant_ad, context_ad),
         prog,
         trajectory_vars,
         target_x_m,
+        hook_length_x_m,
+        hook_length_z_m,
+        free_above_hook_clearance_m,
         hand_height_targets_m,
     )
 
