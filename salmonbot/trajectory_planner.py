@@ -181,7 +181,7 @@ def add_time_step_constraints(
 ):
     for i in range(1, len(dt)):
         prog.AddLinearConstraint(
-            dt[i-1, 0] - dt[i, 0],
+            dt[i - 1, 0] - dt[i, 0],
             lb=0.0,
             ub=0.0,
         )
@@ -353,11 +353,13 @@ def add_positive_velocity_on_release_constraint(
     prog.AddBoundingBoxConstraint([0.0], [np.inf], [state_dot.z_v])
 
 
-def add_initial_state_constraints(plant: tuple[MultibodyPlant, Context],
-                                  plant_ad: tuple[MultibodyPlant, Context],
-                                  q: np.ndarray,
-                                  q_dot: np.ndarray,
-                                  prog: MathematicalProgram):
+def add_initial_state_constraints(
+    plant: tuple[MultibodyPlant, Context],
+    plant_ad: tuple[MultibodyPlant, Context],
+    q: np.ndarray,
+    q_dot: np.ndarray,
+    prog: MathematicalProgram,
+):
     prog.AddConstraint(
         lambda q_t: frame_x_axis(plant, plant_ad, q_t, "hand"),
         lb=[-10.0, 0.0, 0.0],
@@ -383,20 +385,20 @@ def add_initial_state_constraints(plant: tuple[MultibodyPlant, Context],
     prog.AddBoundingBoxConstraint(
         [INITIAL_ARM_LENGTH_M],
         [INITIAL_ARM_LENGTH_M],
-        [State(*q[0]).shoulder_hand_joint_x]
+        [State(*q[0]).shoulder_hand_joint_x],
     )
 
     prog.AddBoundingBoxConstraint(
-        [np.pi - 0.01],
-        [np.pi - 0.01],
-        [State(*q[0]).torso_shoulder_joint_q]
+        [np.pi - 0.01], [np.pi - 0.01], [State(*q[0]).torso_shoulder_joint_q]
     )
 
     prog.AddBoundingBoxConstraint(
         [0.0] * 2,
         [0.0] * 2,
-        [State(*q[0]).torso_upper_leg_joint_q,
-         State(*q[0]).upper_leg_lower_leg_joint_q]
+        [
+            State(*q[0]).torso_upper_leg_joint_q,
+            State(*q[0]).upper_leg_lower_leg_joint_q,
+        ],
     )
 
     nqd = q_dot.shape[1]
