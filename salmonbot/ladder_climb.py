@@ -479,7 +479,7 @@ def package_trajectory(result: MathematicalProgramResult, trajs: list[Trajectory
     return Trajectory(**fields)
 
 
-def plan_ladder_climb(diagram: Diagram):
+def plan_ladder_climb(diagram: Diagram, hand_height_targets_m: list[float]):
     prog = MathematicalProgram()
 
     root_context = diagram.CreateDefaultContext()
@@ -491,7 +491,6 @@ def plan_ladder_climb(diagram: Diagram):
     plant_ad = diagram_ad.GetSubsystemByName("plant")
     context_ad = plant_ad.GetMyContextFromRoot(root_context_ad)
 
-    hand_height_targets_m = [2.11, 2.41, 2.71]
     target_x_m = -0.05
     hook_length_x_m = -0.08
     hook_length_z_m = 0.06

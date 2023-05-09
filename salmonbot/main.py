@@ -185,27 +185,30 @@ def plot_trajectory(traj: Trajectory):
     plt.show()
 
 
-def tile_trajectory(traj: Trajectory, target_spacing_z_m: float, tile_count: int = 4):
+def tile_trajectory(traj: Trajectory, hand_height_targets_m: list[float]):
     out = {}
     for name, field in traj._asdict().items():
         if name == "is_successful":
             out[name] = True
         else:
             first_idx = 21 if name == "t" else 22
-            offset = (
-                np.array([0.0, target_spacing_z_m, 0.0, 0.0, 0.0, 0.0, 0.0])
+            offset_vec = (
+                np.array([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 if name == "state"
                 else 0.0
             )
             out[name] = [field[:first_idx]] + [
-                field[first_idx:] + i * offset for i in range(tile_count)
+                field[first_idx:] + (offset - hand_height_targets_m[1]) * offset_vec
+                for offset in hand_height_targets_m[1:]
             ]
             out[name] = np.concatenate(out[name])
 
     return Trajectory(**out)
 
 
-def run(world_path: str, robot_path: str, saved_trajectory: None | str):
+def run(
+    world_path: str, robot_path: str, saved_trajectory: None | str, rung_delta: int
+):
     meshcat = StartMeshcat()
     # Build a diagram
     diagram, scene_graph = load_model(world_path, robot_path, meshcat)
@@ -218,15 +221,15 @@ def run(world_path: str, robot_path: str, saved_trajectory: None | str):
     set_initial_conditions(diagram, context)
 
     # Plan a trajectory
+    hand_height_targets_m = np.arange(2.11, 3.9, 0.3 * rung_delta)
     if saved_trajectory:
         with open(saved_trajectory, "rb") as file_in:
             trajectory = pickle.load(file_in)
     else:
-        trajectory = plan_ladder_climb(diagram)
+        trajectory = plan_ladder_climb(diagram, hand_height_targets_m[:3])
         IPython.embed()
 
-    target_spacing_z_m = 0.3
-    trajectory = tile_trajectory(trajectory, target_spacing_z_m)
+    trajectory = tile_trajectory(trajectory, hand_height_targets_m)
 
     print(
         f"Visualizing Resulting Trajectory. Is successful? {trajectory.is_successful}"
@@ -235,24 +238,19 @@ def run(world_path: str, robot_path: str, saved_trajectory: None | str):
     plot_trajectory(trajectory)
     visualize_trajectory(meshcat, trajectory, simulator, diagram, context)
 
-    # Build a controller
-
-    # Run the simulation
-    # simulator.Initialize()
-    # simulator.set_publish_every_time_step(True)
-    # simulator.set_target_realtime_rate(0.25)
-    # input("press enter to continue")
-    # for i in np.arange(0, 5.0, 0.25):
-    #     print(f"Sim step: {i}")
-    #     simulator.AdvanceTo(i)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--robot", help="path to robot URDF model", required=True)
     parser.add_argument("--world", help="path to world URDF model", required=True)
+    parser.add_argument(
+        "--rung_delta",
+        help="number of rungs try climbing at once",
+        type=int,
+        required=True,
+    )
     parser.add_argument("--saved_trajectory", help="path saved trajectory")
 
     args = parser.parse_args()
 
-    run(args.world, args.robot, args.saved_trajectory)
+    run(args.world, args.robot, args.saved_trajectory, args.rung_delta)
