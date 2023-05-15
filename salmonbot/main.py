@@ -109,6 +109,24 @@ def set_initial_conditions(diagram: Diagram, context: Context):
     )
 
 
+def interpolate_trajectory(traj: Trajectory, query_t: float) -> Trajectory:
+    t = [0] + list(np.cumsum(traj.t))
+    for i, (lb, ub) in enumerate(zip(t[:-1], t[1:])):
+        if query_t >= lb and query_t < ub:
+            fields = {}
+            for name, value in zip(Trajectory._fields, traj):
+                if name == "is_successful":
+                    fields[name] = value
+                    continue
+                elif name == 't':
+                    fields[name] = query_t
+                    continue
+                frac = (query_t - lb) / (ub - lb)
+                fields[name] = (value[i+1] - value[i]) * frac + value[i]
+            return Trajectory(**fields)
+    return None
+
+
 def visualize_trajectory(
     meshcat: Meshcat,
     trajectory: Trajectory,
@@ -123,8 +141,8 @@ def visualize_trajectory(
     meshcat.AddSlider(
         TIMESTEP_SLIDER_STR,
         0,
-        len(t) - 1,
-        step=1.0,
+        t[-1],
+        step=0.02,
         value=0.0,
         decrement_keycode="ArrowLeft",
         increment_keycode="ArrowRight",
@@ -147,9 +165,9 @@ def visualize_trajectory(
         if prev_step_value != step_value:
             prev_step_value = step_value
             should_redraw = True
-            idx = int(step_value)
-            plant.SetPositions(plant_context, trajectory.state[idx])
-            plant.SetVelocities(plant_context, trajectory.state_dot[idx])
+            trajectory_pt = interpolate_trajectory(trajectory, step_value)
+            plant.SetPositions(plant_context, trajectory_pt.state)
+            plant.SetVelocities(plant_context, trajectory_pt.state_dot)
 
         # flush
         if should_redraw:
