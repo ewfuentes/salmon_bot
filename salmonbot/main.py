@@ -124,6 +124,18 @@ def interpolate_trajectory(traj: Trajectory, query_t: float) -> Trajectory:
                 frac = (query_t - lb) / (ub - lb)
                 fields[name] = (value[i+1] - value[i]) * frac + value[i]
             return Trajectory(**fields)
+
+    if query_t > t[-1]:
+        fields = {}
+        for name, value in zip(Trajectory._fields, traj):
+            if name == "is_successful":
+                fields[name] = value
+                continue
+            elif name == 't':
+                fields[name] = query_t
+                continue
+            fields[name] = value[-1]
+        return Trajectory(**fields)
     return None
 
 
@@ -166,6 +178,8 @@ def visualize_trajectory(
             prev_step_value = step_value
             should_redraw = True
             trajectory_pt = interpolate_trajectory(trajectory, step_value)
+            if trajectory_pt is None:
+                continue
             plant.SetPositions(plant_context, trajectory_pt.state)
             plant.SetVelocities(plant_context, trajectory_pt.state_dot)
 
